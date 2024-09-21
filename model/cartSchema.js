@@ -32,6 +32,7 @@ const cartSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   }],
+  cartUUID: { type: String, required: true },
   createdAt: {
     type: Date,
     default: Date.now

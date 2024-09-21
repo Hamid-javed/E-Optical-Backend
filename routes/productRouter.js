@@ -9,7 +9,7 @@ router.get("/categories", productControl.getCategories);
 router.get("/featured", productControl.featured);
 router.get("/get/:productId", verifyUserToken, productControl.getSingle);
 router.get("/search", productControl.search);
-router.post("/cart-product/:productId", productControl.addToCart);
+router.post("/cart-product", productControl.addToCart);
 router.delete("/cart-product/:productId", verifyUserToken, productControl.removeFromCart);
 router.post("/buy-product/:cartId/:productId", verifyUserToken, productControl.buyProduct);
 router.get("/get-orders", verifyUserToken, productControl.getMyOrders);

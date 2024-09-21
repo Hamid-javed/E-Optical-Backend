@@ -3,6 +3,7 @@ const Cart = require("../model/cartSchema");
 const Order = require("../model/orderSchema");
 const Product = require("../model/productSchema");
 const User = require("../model/userSchema");
+const { v4: uuidv4 } = require('uuid');
 
 exports.addProduct = async (req, res) => {
   try {
@@ -92,7 +93,6 @@ exports.getSingle = async (req, res) => {
     if (!product) return res.status(400).json({ message: "product not found" });
     res.json(product);
   } catch (error) {
-    console.error("Error fetching products:", error);
     res.status(500).json({ message: error });
   }
 };
@@ -155,68 +155,59 @@ exports.search = async (req, res) => {
   }
 };
 
+
 exports.addToCart = async (req, res) => {
   try {
-    const userId = req.id;
-    const { productId } = req.params;
-    const { color, size, quantity } = req.body;
-    const user = await User.findOne({ _id: userId });
-    if (!user) {
-      return res.status(404).json({ message: "User not found!" });
+    const { productIDS } = req.body;
+    const { cartUUID } = req.cookies;
+    if (!productIDS) {
+      res.status(404).json({ mesage: "No products Found!" })
     }
-    const product = await Product.findById({ _id: productId });
-    if (!product) {
-      return res.status(404).json({ message: "Product not Found!" });
-    }
-    // const index = await product.variants.findIndex((variant) => {
-    //   if (variant.color === color && variant.size === size) {
-    //     return true;
-    //   }
-    // });
-    // const price = product.variants[index].price;
-    const productDetails = {
-      product: productId,
-      color: color,
-      size: size,
-      quantity: quantity,
-      price: price,
-    };
-    let userCart = await Cart.findOne({ user: userId });
-    if (!userCart) {
-      userCart = await Cart.create({
-        user: userId,
-        items: [productDetails],
-        total: price * quantity,
+    let cart;
+    if (!cartUUID) {
+      const newUUID = uuidv4();
+      cart = new Cart({
+        cartUUID: newUUID,
+        items: [],
+        total: 0
+      });
+      await cart.save()
+      res.cookie('cartUUID', newUUID, {
+        httpOnly: true,
+        path: '/',
+        sameSite: 'None',
+        secure: true
       });
     } else {
-      const existingProductIndex = userCart.items.findIndex(
-        (item) =>
-          item.product.toString() === productId &&
-          item.color === color &&
-          item.size === size
-      );
-
-      if (existingProductIndex !== -1) {
-        userCart.items[existingProductIndex].quantity += quantity;
-        userCart.items[existingProductIndex].price = price;
-      } else {
-        userCart.items.push(productDetails);
+      cart = await Cart.findOne({ cartUUID });
+      if (!cart) {
+        return res.status(404).json({ message: `Cart with UUID ${cartUUID} not found!` });
       }
     }
-    userCart.total = userCart.items.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0
-    );
-    await userCart.save();
-    res.status(200).json({
-      message: "Product added to cart!",
+    for (let index = 0; index < productIDS.length; index++) {
+      const product = await Product.findById(productIDS[index]);
+      if (!product) {
+        return res.status(404).json({ message: `Product with ID ${productIDS[index]} not found!` });
+      }
+      const productExists = cart.items.some(item => item.toString() === product._id.toString());
+      if (!productExists) {
+        cart.items.push(product._id);
+      }
+      cart.total = cart.items.length
+    }
+    await cart.save()
+    return res.status(200).json({
+      message: "Products added to cart successfully!",
+      cart,
     });
   } catch (error) {
-    res.status(501).json({
+    res.status(500).json({
+      message: "Internal server error",
       error: error.message,
     });
   }
-};
+}
+
 
 exports.removeFromCart = async (req, res) => {
   try {
