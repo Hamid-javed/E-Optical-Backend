@@ -6,13 +6,12 @@ const User = require("../model/userSchema");
 
 exports.addProduct = async (req, res) => {
   try {
-    const { name, description, category, colors, size, stock, price } =
-      req.body;
+    const { name, description, category, colors, size, stock, price } = req.body;
 
-    let imagePath = "";
-    if (req.file) {
-      imagePath = req.file.path;
-    }
+    // let imagePath;
+    // if (req.file) {
+    //   imagePath = req.file.path;
+    // }
     const newProduct = new Product({
       name,
       description,
@@ -21,19 +20,37 @@ exports.addProduct = async (req, res) => {
       size,
       stock,
       price,
-      images: [imagePath], // Save the image path in the 'images' array
     });
-
-    // Save the product to the database
     const savedProduct = await newProduct.save();
-
-    // Respond with the saved product data
-    res.status(201).json({ mesage: "Product added successfuly!" });
+    res.status(200).json({ message: "Product added successfuly!", product: savedProduct });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to add product" });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
+
+exports.addImagesToProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    let imagePath;
+    if (req.file) {
+      imagePath = req.file.path;
+    }
+    const product = await Product.findById(productId)
+    product.images.push(imagePath)
+    product.save()
+    res.status(200).json({ message: "Images added in product!", product: product })
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
+
 
 exports.getCategories = async (req, res) => {
   const categories = await Category.find();
@@ -97,8 +114,8 @@ exports.search = async (req, res) => {
 
     const searchCriteria = query
       ? {
-          $or: [{ name: { $regex: regex } }, { category: { $regex: regex } }],
-        }
+        $or: [{ name: { $regex: regex } }, { category: { $regex: regex } }],
+      }
       : {};
     let sortF;
     if (sortfield === "rating") {
@@ -151,12 +168,12 @@ exports.addToCart = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: "Product not Found!" });
     }
-    const index = await product.variants.findIndex((variant) => {
-      if (variant.color === color && variant.size === size) {
-        return true;
-      }
-    });
-    const price = product.variants[index].price;
+    // const index = await product.variants.findIndex((variant) => {
+    //   if (variant.color === color && variant.size === size) {
+    //     return true;
+    //   }
+    // });
+    // const price = product.variants[index].price;
     const productDetails = {
       product: productId,
       color: color,

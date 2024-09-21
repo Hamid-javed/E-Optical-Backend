@@ -1,5 +1,4 @@
 const router = require("express").Router();
-// const images = require("../middlewares/images")
 const productControl = require("../controller/productControl");
 const { verifyUserToken } = require("../middlewares/authUser");
 const { images } = require("../middlewares/images");
@@ -9,8 +8,8 @@ router.post("/add-product", images, productControl.addProduct);
 router.get("/categories", productControl.getCategories);
 router.get("/featured", productControl.featured);
 router.get("/get/:productId", verifyUserToken, productControl.getSingle);
-router.get("/search", verifyUserToken, productControl.search);
-router.post("/cart-product/:productId", verifyUserToken, productControl.addToCart);
+router.get("/search", productControl.search);
+router.post("/cart-product/:productId", productControl.addToCart);
 router.delete("/cart-product/:productId", verifyUserToken, productControl.removeFromCart);
 router.post("/buy-product/:cartId/:productId", verifyUserToken, productControl.buyProduct);
 router.get("/get-orders", verifyUserToken, productControl.getMyOrders);
