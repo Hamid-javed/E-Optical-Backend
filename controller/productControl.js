@@ -169,7 +169,8 @@ exports.addToCart = async (req, res) => {
       cart = new Cart({
         cartUUID: newUUID,
         items: [],
-        total: 0
+        totalPrice: 0,
+        totalProduct: 0
       });
       await cart.save()
       res.cookie('cartUUID', newUUID, {
@@ -192,9 +193,12 @@ exports.addToCart = async (req, res) => {
       const productExists = cart.items.some(item => item.toString() === product._id.toString());
       if (!productExists) {
         cart.items.push(product._id);
+        cart.totalProduct = cart.items.length
+        cart.totalPrice += product.price;
       }
-      cart.total = cart.items.length
     }
+    const deliveryCharge = 150;
+    cart.totalPrice += deliveryCharge;
     await cart.save()
     return res.status(200).json({
       message: "Products added to cart successfully!",
@@ -208,25 +212,54 @@ exports.addToCart = async (req, res) => {
   }
 }
 
+exports.getCart = async (req, res) => {
+  try {
+    const { cartUUID } = req.cookies;
+    if (!cartUUID) {
+      return res.status(404).json({ message: "No cart Found!" })
+    }
+    const cart = await Cart.findOne({ cartUUID: cartUUID })
+    const product = cart.items
+    const products = await Product.find({ _id: { $in: product } })
+    res.status(200).json({
+      products: products,
+      totalPrice: cart.totalPrice,
+      totalProduct: cart.totalProduct
+    })
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
+
 
 exports.removeFromCart = async (req, res) => {
   try {
-    const userId = req.id;
+    const { cartUUID } = req.cookies;
     const { productId } = req.params;
-    const userCart = await Cart.findOne({ user: userId });
-    if (!userCart) {
+    const cart = await Cart.findOne({ cartUUID: cartUUID });
+    if (!cart) {
       return res.status(404).json({ message: "Cart not found!" });
     }
-    const productToRemove = userCart.items.find((items) => {
-      return items.product.toString() === productId;
+    const productToRemove = cart.items.find((items) => {
+      return items.toString() === productId;
     });
+    console.log(productToRemove)
     if (!productToRemove) {
       return res.status(404).json({ message: "Product not found in cart!" });
     }
-    userCart.items = userCart.items.filter(
-      (item) => item.product.toString() === productId
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found in database!" });
+    }
+    cart.items = cart.items.filter(
+      (item) => item.toString() !== productId
     );
-    await userCart.save();
+    cart.totalProduct = cart.items.length;
+    cart.totalPrice -= product.price;
+    await cart.save();
     res.status(200).json({
       message: "Product removed from cart!",
     });
@@ -239,61 +272,89 @@ exports.removeFromCart = async (req, res) => {
 
 exports.buyProduct = async (req, res) => {
   try {
-    const userId = req.id;
-    const { cartId, productId } = req.params;
-    const { street, city, state, zip, country, paymentMethod } = req.body;
-    if (!street) {
-      return res.status(400).json({ message: "Street is required." });
+    const { cartUUID } = req.cookies;
+    const { firstName, lastName, street, city, state, zip, country, paymentMethod } = req.body;
+
+    // Validate input fields
+    if (!firstName || !lastName || !street || !city || !state || !zip || !country || !paymentMethod) {
+      return res.status(400).json({ message: "All shipping and payment fields are required." });
     }
-    if (!city) {
-      return res.status(400).json({ message: "City is required." });
+
+    // Find the cart using cartUUID
+    const cart = await Cart.findOne({ cartUUID });
+    if (!cart || cart.items.length === 0) {
+      return res.status(404).json({ message: "Cart is empty or not found!" });
     }
-    if (!state) {
-      return res.status(400).json({ message: "State is required." });
+
+    // Retrieve all products in the cart
+    const products = await Product.find({ _id: { $in: cart.items } });
+
+    // Verify product availability and stock
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      if (product.stock <= 0) {
+        return res.status(400).json({ message: `Product ${product.name} is out of stock!` });
+      }
     }
-    if (!zip) {
-      return res.status(400).json({ message: "Zip code is required." });
+
+    // Mock payment process (you can replace this with actual payment integration)
+    //const paymentSuccessful = true; // Assume payment is successful
+
+    // if (paymentSuccessful) {
+    //   // Deduct stock for each product in the cart
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      product.stock -= 1; // Decrease stock count
+      await product.save();
     }
-    if (!country) {
-      return res.status(400).json({ message: "Country is required." });
-    }
-    if (!paymentMethod) {
-      return res.status(400).json({ message: "Payment method is required." });
-    }
-    const userCart = await Cart.findById({ _id: cartId });
-    if (!userCart) {
-      return res.status(404).json({ message: "No such cart found!" });
-    }
-    const productInCart = userCart.items.find(
-      (item) => item.product.toString() === productId
-    );
-    if (!productInCart) {
-      return res
-        .status(404)
-        .json({ message: "No such product found in the cart!" });
-    }
-    const shippingAddress = {
-      street,
-      city,
-      state,
-      zip,
-      country,
-    };
-    const userOrder = await Order.create({
-      user: userId,
-      items: [productInCart],
-      totalAmount: productInCart.price * productInCart.quantity,
-      paymentMethod: paymentMethod,
-      shippingAddress,
+
+    // Create an order object
+    const order = new Order({
+      cartUUID: cartUUID,
+      items: cart.items, // Items from the cart
+      totalAmount: cart.totalPrice, // Total price from the cart
+      shippingAddress: {
+        firstName,
+        lastName,
+        street,
+        city,
+        state,
+        zip,
+        country,
+      },
+      date: new Date(),
     });
-    const user = await User.findById(userId);
-    user.orders.push(userOrder);
-    user.save();
-    res.status(200).json({ message: "Order placed successfullu!" });
+
+    // Save the order
+    await order.save();
+
+    // Add the order to the user's order history (assuming User model has orders array)
+    // const user = await User.findById(userId);
+    // if (user) {
+    //   user.orders.push(order._id);
+    //   await user.save();
+    // }
+
+    // Clear the cart after successful purchase
+    cart.items = [];
+    cart.totalProduct = 0;
+    cart.totalPrice = 0;
+    await cart.save();
+
+    // Return success message and order details
+    return res.status(200).json({
+      message: "Order placed successfully!",
+      order,
+    });
+    // } else {
+    //   return res.status(400).json({ message: "Payment failed!" });
+    // }
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 exports.getMyOrders = async (req, res) => {
   try {

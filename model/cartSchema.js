@@ -41,7 +41,11 @@ const cartSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  total: {
+  totalProduct: {
+    type: Number,
+    required: true
+  },
+  totalPrice: {
     type: Number,
     required: true
   }
