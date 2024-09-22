@@ -1,8 +1,22 @@
 const mongoose = require('mongoose');
 
+const messageSchema = new mongoose.Schema({
+  productName: {type: String},
+  right: { type: Number },
+  rightAxis: { type: Number },
+  left: { type: Number },
+  leftAxis: { type: Number }
+})
+
 const orderSchema = new mongoose.Schema({
   cartUUID: { type: String, required: true },
   totalAmount: { type: Number, required: true },
+  items: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  }],
+  message: [messageSchema],
   status: {
     type: String,
     enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],

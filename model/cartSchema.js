@@ -26,6 +26,14 @@ const mongoose = require('mongoose');
 //   }
 // });
 
+const messageSchema = new mongoose.Schema({
+  productName: {type: String},
+  right: { type: Number },
+  rightAxis: { type: Number },
+  left: { type: Number },
+  leftAxis: { type: Number }
+})
+
 const cartSchema = new mongoose.Schema({
   items: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -33,6 +41,7 @@ const cartSchema = new mongoose.Schema({
     required: true
   }],
   cartUUID: { type: String, required: true },
+  message: [messageSchema],
   createdAt: {
     type: Date,
     default: Date.now
