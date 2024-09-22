@@ -5,6 +5,7 @@ const { images } = require("../middlewares/images");
 
 
 router.post("/add-product", images, productControl.addProduct);
+router.post("/add-variants/:productId", productControl.addVariants);
 router.get("/categories", productControl.getCategories);
 router.get("/featured", productControl.featured);
 router.get("/get/:productId", verifyUserToken, productControl.getSingle);
@@ -12,7 +13,7 @@ router.get("/search", productControl.search);
 router.get("/cart", productControl.getCart);
 router.post("/cart-product", productControl.addToCart);
 router.delete("/cart-product/:productId", productControl.removeFromCart);
-router.post("/buy-product", verifyUserToken, productControl.buyProduct);
+router.post("/buy-cart", productControl.buyProduct);
 router.get("/get-orders", verifyUserToken, productControl.getMyOrders);
 router.post("/wishlist/:productId", verifyUserToken, productControl.addProductTWoishlist);
 router.delete("/wishlist/:productId", verifyUserToken, productControl.removeProductTWoishlist);

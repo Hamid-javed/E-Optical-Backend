@@ -3,28 +3,33 @@ const Cart = require("../model/cartSchema");
 const Order = require("../model/orderSchema");
 const Product = require("../model/productSchema");
 const User = require("../model/userSchema");
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require("uuid");
 
 exports.addProduct = async (req, res) => {
   try {
-    const { name, description, category, colors, size, stock, price } = req.body;
-
-    // let imagePath;
-    // if (req.file) {
-    //   imagePath = req.file.path;
+    const { name, description, category, variants } = req.body;
+    if (!variants || !Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({
+        message: "Variants must be provided as an array with at least one entry.",
+      });
+    }
+    // Optional: Handle file uploads for product images if needed
+    // let imagePath = [];
+    // if (req.files) {
+    //   imagePath = req.files.map((file) => file.path);
     // }
     const newProduct = new Product({
       name,
       description,
       category,
-      colors,
-      size,
-      stock,
-      price,
+      variants,
     });
     const savedProduct = await newProduct.save();
-    res.status(200).json({ message: "Product added successfuly!", product: savedProduct });
-  } catch (err) {
+    res.status(200).json({
+      message: "Product added successfully!",
+      product: savedProduct,
+    });
+  } catch (error) {
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -32,18 +37,31 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-exports.addImagesToProduct = async (req, res) => {
+exports.addVariants = async (req, res) => {
   try {
     const { productId } = req.params;
-    let imagePath;
-    if (req.file) {
-      imagePath = req.file.path;
+    const { variant } = req.body;
+    if (!variant || typeof variant !== 'object') {
+      return res.status(400).json({
+        message: "Variant data must be provided.",
+      });
     }
-    const product = await Product.findById(productId)
-    product.images.push(imagePath)
-    product.save()
-    res.status(200).json({ message: "Images added in product!", product: product })
+    console.log(variant)
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      { $push: { variants: variant } }, // Add the new variant to the variants array
+      { new: true } // Return the updated product after the update
+    );
 
+    if (!updatedProduct) {
+      return res.status(404).json({
+        message: "Product not found.",
+      });
+    }
+    res.status(200).json({
+      message: "Variant added successfully!",
+      product: updatedProduct,
+    });
   } catch (error) {
     res.status(500).json({
       message: "Internal server error",
@@ -52,6 +70,28 @@ exports.addImagesToProduct = async (req, res) => {
   }
 }
 
+
+
+exports.addImagesToProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    let imagePath;
+    if (req.file) {
+      imagePath = req.file.path;
+    }
+    const product = await Product.findById(productId);
+    product.images.push(imagePath);
+    product.save();
+    res
+      .status(200)
+      .json({ message: "Images added in product!", product: product });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
 
 exports.getCategories = async (req, res) => {
   const categories = await Category.find();
@@ -155,13 +195,12 @@ exports.search = async (req, res) => {
   }
 };
 
-
 exports.addToCart = async (req, res) => {
   try {
     const { productIDS } = req.body;
     const { cartUUID } = req.cookies;
     if (!productIDS) {
-      res.status(404).json({ mesage: "No products Found!" })
+      res.status(404).json({ mesage: "No products Found!" });
     }
     let cart;
     if (!cartUUID) {
@@ -170,36 +209,42 @@ exports.addToCart = async (req, res) => {
         cartUUID: newUUID,
         items: [],
         totalPrice: 0,
-        totalProduct: 0
+        totalProduct: 0,
       });
-      await cart.save()
-      res.cookie('cartUUID', newUUID, {
+      await cart.save();
+      res.cookie("cartUUID", newUUID, {
         httpOnly: true,
-        path: '/',
-        sameSite: 'None',
-        secure: true
+        path: "/",
+        sameSite: "None",
+        secure: true,
       });
     } else {
       cart = await Cart.findOne({ cartUUID });
       if (!cart) {
-        return res.status(404).json({ message: `Cart with UUID ${cartUUID} not found!` });
+        return res
+          .status(404)
+          .json({ message: `Cart with UUID ${cartUUID} not found!` });
       }
     }
     for (let index = 0; index < productIDS.length; index++) {
       const product = await Product.findById(productIDS[index]);
       if (!product) {
-        return res.status(404).json({ message: `Product with ID ${productIDS[index]} not found!` });
+        return res
+          .status(404)
+          .json({ message: `Product with ID ${productIDS[index]} not found!` });
       }
-      const productExists = cart.items.some(item => item.toString() === product._id.toString());
+      const productExists = cart.items.some(
+        (item) => item.toString() === product._id.toString()
+      );
       if (!productExists) {
         cart.items.push(product._id);
-        cart.totalProduct = cart.items.length
+        cart.totalProduct = cart.items.length;
         cart.totalPrice += product.price;
       }
     }
     const deliveryCharge = 150;
     cart.totalPrice += deliveryCharge;
-    await cart.save()
+    await cart.save();
     return res.status(200).json({
       message: "Products added to cart successfully!",
       cart,
@@ -210,30 +255,29 @@ exports.addToCart = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 exports.getCart = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
     if (!cartUUID) {
-      return res.status(404).json({ message: "No cart Found!" })
+      return res.status(404).json({ message: "No cart Found!" });
     }
-    const cart = await Cart.findOne({ cartUUID: cartUUID })
-    const product = cart.items
-    const products = await Product.find({ _id: { $in: product } })
+    const cart = await Cart.findOne({ cartUUID: cartUUID });
+    const product = cart.items;
+    const products = await Product.find({ _id: { $in: product } });
     res.status(200).json({
       products: products,
       totalPrice: cart.totalPrice,
-      totalProduct: cart.totalProduct
-    })
+      totalProduct: cart.totalProduct,
+    });
   } catch (error) {
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
-}
-
+};
 
 exports.removeFromCart = async (req, res) => {
   try {
@@ -246,17 +290,17 @@ exports.removeFromCart = async (req, res) => {
     const productToRemove = cart.items.find((items) => {
       return items.toString() === productId;
     });
-    console.log(productToRemove)
+    console.log(productToRemove);
     if (!productToRemove) {
       return res.status(404).json({ message: "Product not found in cart!" });
     }
     const product = await Product.findById(productId);
     if (!product) {
-      return res.status(404).json({ message: "Product not found in database!" });
+      return res
+        .status(404)
+        .json({ message: "Product not found in database!" });
     }
-    cart.items = cart.items.filter(
-      (item) => item.toString() !== productId
-    );
+    cart.items = cart.items.filter((item) => item.toString() !== productId);
     cart.totalProduct = cart.items.length;
     cart.totalPrice -= product.price;
     await cart.save();
@@ -273,11 +317,13 @@ exports.removeFromCart = async (req, res) => {
 exports.buyProduct = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
-    const { firstName, lastName, street, city, state, zip, country, paymentMethod } = req.body;
+    const { firstName, lastName, email, number, address, city, zip, country } = req.body;
 
     // Validate input fields
-    if (!firstName || !lastName || !street || !city || !state || !zip || !country || !paymentMethod) {
-      return res.status(400).json({ message: "All shipping and payment fields are required." });
+    if (!firstName || !lastName || !email || !number || !address || !city || !zip || !country) {
+      return res
+        .status(400)
+        .json({ message: "All shipping and payment fields are required." });
     }
 
     // Find the cart using cartUUID
@@ -297,32 +343,33 @@ exports.buyProduct = async (req, res) => {
       }
     }
 
-    // Mock payment process (you can replace this with actual payment integration)
+    // Mock payment process (replace this with actual payment integration)
     //const paymentSuccessful = true; // Assume payment is successful
 
     // if (paymentSuccessful) {
-    //   // Deduct stock for each product in the cart
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
+    // Deduct stock for each product in the cart
+    for (const product of products) {
       product.stock -= 1; // Decrease stock count
       await product.save();
     }
 
     // Create an order object
     const order = new Order({
-      cartUUID: cartUUID,
-      items: cart.items, // Items from the cart
+      products: products,
       totalAmount: cart.totalPrice, // Total price from the cart
       shippingAddress: {
         firstName,
         lastName,
-        street,
+        email,
+        number,
+        address,
         city,
-        state,
         zip,
         country,
       },
-      date: new Date(),
+      // Optionally, you can add trackingNumber logic here
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     // Save the order
@@ -349,12 +396,12 @@ exports.buyProduct = async (req, res) => {
     // } else {
     //   return res.status(400).json({ message: "Payment failed!" });
     // }
-
   } catch (error) {
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
-
 
 exports.getMyOrders = async (req, res) => {
   try {
