@@ -4,17 +4,17 @@ const { verifyUserToken } = require("../middlewares/authUser");
 const { images } = require("../middlewares/images");
 
 
-router.post("/add-product", images, productControl.addProduct);//fixed
+router.post("/add-product", images, productControl.addProduct);//to fix
 router.get("/categories", productControl.getCategories);
 router.get("/featured", productControl.featured);
-router.get("/get/:productId", productControl.getSingle);//fix
+router.get("/get/:productId", productControl.getSingle);//fixed
 router.get("/search", productControl.search);
 router.get("/cart", productControl.getCart);//fixed
 router.post("/cart-product/:productId", productControl.addToCart);//fixed
-router.delete("/cart-product/:productId", productControl.removeFromCart);
+router.delete("/cart-product/:productId", productControl.removeFromCart);//fixed
 router.post("/buy-cart", productControl.buyProduct);//fixed
 router.get("/get-order", productControl.getMyOrder);//fixed
-router.post("/wishlist/:productId", verifyUserToken, productControl.addProductTWoishlist);
+router.post("/wishlist/:productId", productControl.addProductTWoishlist);
 router.delete("/wishlist/:productId", verifyUserToken, productControl.removeProductTWoishlist);
 router.get("/:productId/reviews", productControl.getAllReviews);
 router.post("/reviews/:productId", productControl.addReview);//fixed
