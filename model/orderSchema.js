@@ -9,7 +9,11 @@ const messageSchema = new mongoose.Schema({
 })
 
 const orderSchema = new mongoose.Schema({
-  cartUUID: { type: String, required: true },
+  products: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  }],
   totalAmount: { type: Number, required: true },
   items: [{
     type: mongoose.Schema.Types.ObjectId,
