@@ -86,12 +86,9 @@ exports.getSingle = async (req, res) => {
     if (!productId) {
       return res.status(400).json({ message: "Invalid id" });
     }
-    const product = await Product.findOne({ _id: productId }).populate({
-      path: "reviews.user",
-      select: "name email",
-    });
+    const product = await Product.findOne({ _id: productId })
     if (!product) return res.status(400).json({ message: "product not found" });
-    res.json(product);
+    res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ message: error });
   }
@@ -335,8 +332,8 @@ exports.buyProduct = async (req, res) => {
     const order = new Order({
       cartUUID: cartUUID,
       message: cart.message,
-      items: cart.items, 
-      totalAmount: cart.totalPrice, 
+      items: cart.items,
+      totalAmount: cart.totalPrice,
       shippingAddress: {
         firstName,
         lastName,
@@ -382,10 +379,10 @@ exports.buyProduct = async (req, res) => {
 };
 
 
-exports.getMyOrders = async (req, res) => {
+exports.getMyOrder = async (req, res) => {
   try {
-    const userId = req.id;
-    const userOrders = await Order.find({ user: userId });
+    const { cartUUID } = req.cookies;
+    const userOrders = await Order.findOne({ cartUUID });
     res.status(200).json({
       userOrders,
     });
@@ -442,39 +439,30 @@ exports.removeProductTWoishlist = async (req, res) => {
   }
 };
 
+
 exports.addReview = async (req, res) => {
-  const { rating, review, productId } = req.body;
-  const userId = req.user._id;
-
   try {
-    // Check if the user has purchased the product
-    const hasPurchased = await Order.findOne({
-      user: userId,
-      "items.product": productId,
-      status: { $in: ["Shipped", "Delivered"] },
-    });
-
-    if (!hasPurchased) {
-      return res
-        .status(403)
-        .json({ message: "You can only review products you have purchased." });
+    const { rating, review, name, email } = req.body;
+    const { productId } = req.params;
+    if (!rating || !review || !name || !email) {
+      return res.status(400).json({ message: "please privied all details" })
     }
-
-    const newReview = new Review({
+    const product = await Product.findOne({ _id: productId })
+    if (!product) return res.status(404).json({ message: "Product not found" })
+    const userReview = {
       rating,
       review,
-      user: userId,
-      product: productId,
-    });
-
-    await newReview.save();
-    res
-      .status(201)
-      .json({ message: "Review added successfully", review: newReview });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+      name,
+      email
+    }
+    product.reviews.unshift(userReview)
+    product.save()
+    res.status(200).json({ message: "Review Added" })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
-};
+}
+
 
 // Update a Review - Only if the user owns the review
 exports.updateReview = async (req, res) => {

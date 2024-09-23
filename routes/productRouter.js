@@ -4,20 +4,20 @@ const { verifyUserToken } = require("../middlewares/authUser");
 const { images } = require("../middlewares/images");
 
 
-router.post("/add-product", images, productControl.addProduct);
+router.post("/add-product", images, productControl.addProduct);//fixed
 router.get("/categories", productControl.getCategories);
 router.get("/featured", productControl.featured);
-router.get("/get/:productId", verifyUserToken, productControl.getSingle);
+router.get("/get/:productId", productControl.getSingle);//fix
 router.get("/search", productControl.search);
-router.get("/cart", productControl.getCart);
-router.post("/cart-product/:productId", productControl.addToCart);
+router.get("/cart", productControl.getCart);//fixed
+router.post("/cart-product/:productId", productControl.addToCart);//fixed
 router.delete("/cart-product/:productId", productControl.removeFromCart);
-router.post("/buy-product", productControl.buyProduct);
-router.get("/get-orders", verifyUserToken, productControl.getMyOrders);
+router.post("/buy-cart", productControl.buyProduct);//fixed
+router.get("/get-order", productControl.getMyOrder);//fixed
 router.post("/wishlist/:productId", verifyUserToken, productControl.addProductTWoishlist);
 router.delete("/wishlist/:productId", verifyUserToken, productControl.removeProductTWoishlist);
 router.get("/:productId/reviews", productControl.getAllReviews);
-router.post("/:productId/reviews", verifyUserToken, productControl.addReview);
+router.post("/reviews/:productId", productControl.addReview);//fixed
 router.put("/reviews/:reviewId", verifyUserToken, productControl.updateReview);
 router.delete("/reviews/:reviewId", verifyUserToken, productControl.deleteReview);
 
