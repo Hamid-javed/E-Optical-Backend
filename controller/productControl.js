@@ -93,19 +93,30 @@ exports.addImagesToProduct = async (req, res) => {
   }
 };
 
-exports.getCategories = async (req, res) => {
-  const categories = await Category.find();
-  const categoryData = categories.map((category) => {
-    return { name: category.name, productCount: category.productCount };
-  });
-  res.json(categoryData);
+// Get Products by Category
+exports.getProductsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    // Find products matching the given category
+    const products = await Product.find({ category });
+
+    if (products.length === 0) {
+      return res.status(404).json({ message: "No products found in this category" });
+    }
+
+    res.status(200).json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
+
 
 exports.featured = async (req, res) => {
   try {
     const categories = await Product.aggregate([
       { $group: { _id: "$category" } },
-      { $limit: 7 },
+      { $limit: 10 },
     ]).exec();
     const productPromises = categories.map((category) => {
       return Product.findOne({ category: category._id }).exec();
@@ -472,58 +483,25 @@ exports.addProductTWoishlist = async (req, res) => {
   }
 };
 
-// exports.addProductToWishlist = async (req, res) => {
-//   try {
-//     const { cartUUID } = req.cookies;
-//     const { productId } = req.params;
+exports.getWishlistProduct = async (req, res) => {
+  try {
+    const { cartUUID } = req.cookies;
+    if (!cartUUID) {
+      return res.statud(404).json({ message: "CartUUID not found!" })
+    }
+    const wishList = await Wish.findOne({ cartUUID: cartUUID })
+    if (!wishList) {
+      return res.statud(400).json({ message: "No product found in  wishList!" })
+    }
+    res.status(200).json(wishList)
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
 
-//     // Check if cartUUID exists
-//     if (!cartUUID) {
-//       return res.status(404).json({ message: "UUID not found!" });
-//     }
-
-//     // Check if product exists
-//     const product = await Product.findById(productId);
-//     if (!product) {
-//       return res.status(404).json({ message: "Product not found!" });
-//     }
-
-//     // Find the wishlist by cartUUID
-//     let wishList = await Wish.findOne({ cartUUID: cartUUID });
-
-//     // If no wishlist exists, create a new one
-//     if (!wishList) {
-//       wishList = new Wish({
-//         items: [productId], // Initialize items as an array
-//         cartUUID: cartUUID
-//       });
-//     } else {
-//       // Check if product is already in the wishlist
-//       const isProductInWishlist = wishList.items.includes(productId);
-
-//       // Only add the product if it's not already in the wishlist
-//       if (!isProductInWishlist) {
-//         wishList.items.push(productId);
-//       } else {
-//         return res.status(400).json({ message: "Product is already in the wishlist!" });
-//       }
-//     }
-
-//     // Save the updated or new wishlist
-//     await wishList.save();
-
-//     // Return success message
-//     res.status(200).json({
-//       message: "Product added to wishlist!",
-//     });
-//   } catch (error) {
-//     // Catch and return any errors
-//     res.status(500).json({
-//       message: "Internal server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 
 exports.removeProductTWoishlist = async (req, res) => {
@@ -554,27 +532,35 @@ exports.addReview = async (req, res) => {
   try {
     const { rating, review, name, email } = req.body;
     const { productId } = req.params;
+
     if (!rating || !review || !name || !email) {
-      return res.status(400).json({ message: "please privied all details" })
+      return res.status(400).json({ message: "Please provide all details" });
     }
-    const product = await Product.findOne({ _id: productId })
-    if (!product) return res.status(404).json({ message: "Product not found" })
+
+    const product = await Product.findOne({ _id: productId });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const existingReview = product.reviews.find((r) => r.email === email);
+    if (existingReview) {
+      return res.status(400).json({ message: "You have already reviewed this product" });
+    }
     const userReview = {
       rating,
       review,
       name,
       email
-    }
-    product.reviews.unshift(userReview)
-    product.save()
-    res.status(200).json({ message: "Review Added" })
+    };
+    product.reviews.unshift(userReview);
+    await product.save();
+    res.status(200).json({ message: "Review added successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: error.message });
   }
-}
+};
 
 
-// Update a Review - Only if the user owns the review
 exports.updateReview = async (req, res) => {
   const { reviewId } = req.params;
   const { rating, review } = req.body;
