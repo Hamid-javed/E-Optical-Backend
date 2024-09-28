@@ -4,95 +4,79 @@ const Product = require("../model/productSchema");
 const User = require("../model/userSchema");
 const Wish = require("../model/wishSchema")
 const { v4: uuidv4 } = require("uuid");
+const cloudinary = require('../config/cloudinaryConfig')
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
+//Add new product
 exports.addProduct = async (req, res) => {
   try {
-    const { name, description, category, variants } = req.body;
-    if (!variants || !Array.isArray(variants) || variants.length === 0) {
-      return res.status(400).json({
-        message: "Variants must be provided as an array with at least one entry.",
-      });
+    const { name, description, category, colors, size, stock, price } = req.body;
+
+    if (!name || !description || !category || !colors || !size || !stock || !price) {
+      return res.status(400).json({ message: 'All fileds are required.' });
     }
-    // Optional: Handle file uploads for product images if needed
-    // let imagePath = [];
-    // if (req.files) {
-    //   imagePath = req.files.map((file) => file.path);
-    // }
+
+    const imageUrls = req.files.map(file => file.path);
+
+    // Create a new product
     const newProduct = new Product({
       name,
       description,
       category,
-      variants,
+      colors: JSON.parse(colors),
+      size,
+      stock,
+      price,
+      images: imageUrls,
     });
+
     const savedProduct = await newProduct.save();
-    res.status(200).json({
-      message: "Product added successfully!",
-      product: savedProduct,
-    });
+    res.status(200).json({ message: 'Product added successfully!', product: savedProduct });
   } catch (error) {
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
 
-exports.addVariants = async (req, res) => {
+//Update the product
+exports.updateProduct = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { variant } = req.body;
-    if (!variant || typeof variant !== 'object') {
-      return res.status(400).json({
-        message: "Variant data must be provided.",
-      });
-    }
-    const updatedProduct = await Product.findByIdAndUpdate(
-      productId,
-      { $push: { variants: variant } }, // Add the new variant to the variants array
-      { new: true } // Return the updated product after the update
-    );
+    const { name, description, category, colors, size, stock, price, imagesToDelete } = req.body;
 
-    if (!updatedProduct) {
-      return res.status(404).json({
-        message: "Product not found.",
-      });
-    }
-    res.status(200).json({
-      message: "Variant added successfully!",
-      product: updatedProduct,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-}
-
-
-
-exports.addImagesToProduct = async (req, res) => {
-  try {
-    const { productId } = req.params;
-    let imagePath;
-    if (req.file) {
-      imagePath = req.file.path;
-    }
+    // Find the product by ID
     const product = await Product.findById(productId);
-    product.images.push(imagePath);
-    product.save();
-    res
-      .status(200)
-      .json({ message: "Images added in product!", product: product });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    // Update fields only if they are provided
+    product.name = name || product.name;
+    product.description = description || product.description;
+    product.category = category || product.category;
+    product.colors = colors ? JSON.parse(colors) : product.colors;
+    product.size = size || product.size;
+    product.stock = stock !== undefined ? stock : product.stock;
+    product.price = price || product.price;
+
+    product.images = product.images.filter(img => !imagesToDelete.includes(img));
+
+    // Handle image additions (if new images are uploaded)
+    if (req.files && req.files.length > 0) {
+      const newImageUrls = req.files.map(file => file.path);
+      product.images.push(...newImageUrls);
+    }
+
+    const updatedProduct = await product.save();
+    res.status(200).json({ message: 'Product updated successfully!', product: updatedProduct });
   } catch (error) {
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
+
+
 
 // Get Products by Category
 exports.getProductsByCategory = async (req, res) => {
@@ -348,30 +332,25 @@ exports.buyCart = async (req, res) => {
     const { cartUUID } = req.cookies;
     const { firstName, lastName, address, city, email, number, zip, country } = req.body;
 
-    // Validate input fields
     if (!firstName || !lastName || !address || !city || !email || !zip || !number || !country) {
       return res.status(400).json({ message: "All shipping and payment fields are required." });
     }
 
-    // Find cart by UUID
     const cart = await Cart.findOne({ cartUUID });
     if (!cart || cart.items.length === 0) {
       return res.status(404).json({ message: "Cart is empty!" });
     }
-    // Retrieve all products from the cart
     const products = await Product.find({ _id: { $in: cart.items } });
 
-    // Verify product availability and stock
     for (const product of products) {
       if (product.stock <= 0) {
         return res.status(400).json({ message: `Product ${product.name} is out of stock!` });
       }
     }
 
-    // Deduct stock for each product in the cart
     for (const product of products) {
-      product.stock -= 1; // Decrease stock count
-      await product.save(); // Save the updated product stock
+      product.stock -= 1;
+      await product.save();
     }
 
     // Create an order
@@ -398,19 +377,14 @@ exports.buyCart = async (req, res) => {
     // Save the order
     await order.save();
 
-
-
-    // Set up Nodemailer transport using environment variables
     const transporter = nodemailer.createTransport({
-      service: 'gmail', // or any other mail service
+      service: 'gmail',
       auth: {
-        user: process.env.Email,  // Use the email from environment variables
-        pass: process.env.Password, // Use the correct spelling of 'Password'
+        user: process.env.Email,
+        pass: process.env.Password,
       },
     });
 
-
-    // Prepare the email content with product details
     const productDetails = products.map(product => `
       <div>
         <h3>${product.name}</h3>
@@ -421,8 +395,8 @@ exports.buyCart = async (req, res) => {
 
     // Email options
     const mailOptions = {
-      from: process.env.Email, // Must match the transporter email
-      to: email, // Send to the user's email
+      from: process.env.Email,
+      to: email,
       subject: 'Your Order Details',
       html: `
         <h2>Thank you for your purchase!</h2>
@@ -442,7 +416,6 @@ exports.buyCart = async (req, res) => {
       }
     });
 
-    // Send the email and handle potential errors
     await transporter.sendMail(mailOptions)
       .then(() => {
         console.log('Order confirmation email sent successfully.');
@@ -457,7 +430,6 @@ exports.buyCart = async (req, res) => {
     cart.totalPrice = 0;
     await cart.save();
 
-    // Return success message and order details
     return res.status(200).json({
       message: "Order placed successfully! A confirmation email has been sent.",
       order,
