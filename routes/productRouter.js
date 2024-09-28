@@ -12,7 +12,7 @@ router.get("/search", productControl.search);//fixed
 router.get("/cart", productControl.getCart);//fixed
 router.post("/cart-product/:productId", productControl.addToCart);//fixed
 router.delete("/cart-product/:productId", productControl.removeFromCart);//fixed
-router.post("/buy-cart", productControl.buyProduct);//fixed
+router.post("/buy-cart", productControl.buyCart);//fixed
 router.get("/get-order", productControl.getMyOrder);//fixed
 router.get("/wishlist", productControl.getWishlistProduct)
 router.post("/wishlist/:productId", productControl.addProductTWoishlist);//fixed

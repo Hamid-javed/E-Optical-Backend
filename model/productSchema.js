@@ -87,6 +87,7 @@
 
 const mongoose = require("mongoose");
 
+// Review schema remains unchanged
 const reviewSchema = new mongoose.Schema({
   rating: { type: Number, required: true, min: 1, max: 5 },
   name: { type: String, required: true },
@@ -95,7 +96,6 @@ const reviewSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
 });
 
-
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -103,9 +103,32 @@ const productSchema = new mongoose.Schema({
   },
   description: {
     type: String,
+    required: true,
   },
   category: {
     type: String,
+  },
+  colors: {
+    type: [String],
+    required: true, // Array of color strings
+    default: [],
+  },
+  size: {
+    type: String, // Assuming size is a single value
+  },
+  stock: {
+    type: Number,
+    required: true,
+    min: 0, // Ensures stock can't be negative
+  },
+  price: {
+    type: Number,
+    required: true, // Price is required for every product
+  },
+  images: {
+    required: true,
+    type: [String], // Array of image URLs
+    default: [],
   },
   reviewCount: {
     type: Number,

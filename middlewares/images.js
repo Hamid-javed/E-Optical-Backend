@@ -1,48 +1,3 @@
-// const multer = require('multer');
-// const { CloudinaryStorage } = require('multer-storage-cloudinary');
-// const cloudinary = require('../config/cloudinaryConfig');
-// const { v4: uuidv4 } = require("uuid")
-
-
-// const storage = new CloudinaryStorage({
-//     cloudinary: cloudinary,
-//     params: (req, file) => {
-//         const uniqueSuffix = `${Date.now()}-${uuidv4()}`;
-//         const filename = file.originalname.replace(/\.[^/.]+$/, "");
-//         const folder = 'post_media';
-//         let format = 'auto';
-//         if (file.mimetype.startsWith('image/')) {
-//             format = file.mimetype.split('/')[1];
-//         } else if (file.mimetype.startsWith('video/')) {
-//             format = 'mp4';
-//         } else if (file.mimetype.startsWith('image/gif')) {
-//             format = 'gif';
-//         }
-
-//         return {
-//             folder,
-//             format,
-//             public_id: `${filename}-${uniqueSuffix}`
-//         };
-//     }
-// });
-
-// const fileFilter = (req, file, cb) => {
-//     const allowedTypes = /jpeg|jpg|png|webp|bmp|tiff|gif/;
-//     const mimetype = allowedTypes.test(file.mimetype);
-
-//     if (mimetype) {
-//         return cb(null, true);
-//     } else {
-//         return cb(new Error('Only image, video, and GIF files are allowed!'));
-//     }
-// };
-
-// exports.images = multer({
-//     storage,
-//     limits: { fileSize: 1024 * 1024 * 5 }, // 5MB limit (adjust as needed)
-//     fileFilter: fileFilter
-// }).single('images'); // Field name should match the form field name
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -60,7 +15,6 @@ const storage = new CloudinaryStorage({
         if (file.mimetype.startsWith('image/')) {
             format = file.mimetype.split('/')[1];  // Set format based on the image MIME type
         }
-
         return {
             folder,
             format,
@@ -82,8 +36,10 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Multer middleware for handling image uploads
+// Change from single to multiple file uploads
 exports.images = multer({
     storage,
     limits: { fileSize: 1024 * 1024 * 5 }, // 5MB file size limit
     fileFilter: fileFilter  // Only accept images
-}).single('images'); // Handle single file uploads (field name should be 'images')
+}).array('images', 10); // Handle multiple file uploads (max 10 images)
+

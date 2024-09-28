@@ -1,10 +1,11 @@
-const Category = require("../model/categorySchema");
 const Cart = require("../model/cartSchema");
 const Order = require("../model/orderSchema");
 const Product = require("../model/productSchema");
 const User = require("../model/userSchema");
 const Wish = require("../model/wishSchema")
 const { v4: uuidv4 } = require("uuid");
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 exports.addProduct = async (req, res) => {
   try {
@@ -237,7 +238,7 @@ exports.addToCart = async (req, res) => {
     }
     const product = await Product.findById(productId);
     if (!product) {
-      return res.status(404).json({ message: `Product with ID ${productId[index]} not found!` });
+      return res.status(404).json({ message: `Product with ID ${productId} not found!` });
     }
     let newPrice = product.price;
     if (lense === "digitalScreenLense") {
@@ -341,45 +342,42 @@ exports.removeFromCart = async (req, res) => {
   }
 };
 
-exports.buyProduct = async (req, res) => {
+
+exports.buyCart = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
-    const { firstName, lastName, address, city, email, number, zip, country, } = req.body;
+    const { firstName, lastName, address, city, email, number, zip, country } = req.body;
 
     // Validate input fields
     if (!firstName || !lastName || !address || !city || !email || !zip || !number || !country) {
       return res.status(400).json({ message: "All shipping and payment fields are required." });
     }
 
-    // Find the cart using cartUUID
+    // Find cart by UUID
     const cart = await Cart.findOne({ cartUUID });
     if (!cart || cart.items.length === 0) {
-      return res.status(404).json({ message: "Cart is empty or not found!" });
+      return res.status(404).json({ message: "Cart is empty!" });
     }
-
-    // Retrieve all products in the cart
+    // Retrieve all products from the cart
     const products = await Product.find({ _id: { $in: cart.items } });
 
     // Verify product availability and stock
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
+    for (const product of products) {
       if (product.stock <= 0) {
         return res.status(400).json({ message: `Product ${product.name} is out of stock!` });
       }
     }
 
-    // Mock payment process (replace this with actual payment integration)
-    //const paymentSuccessful = true; // Assume payment is successful
-
-    // if (paymentSuccessful) {
     // Deduct stock for each product in the cart
     for (const product of products) {
       product.stock -= 1; // Decrease stock count
-      await product.save();
+      await product.save(); // Save the updated product stock
     }
-    // Create an order object
+
+    // Create an order
     const order = new Order({
       cartUUID: cartUUID,
+      products: products.map(product => product._id),
       message: cart.message,
       items: cart.items,
       totalAmount: cart.totalPrice,
@@ -393,7 +391,6 @@ exports.buyProduct = async (req, res) => {
         zip,
         country,
       },
-      // Optionally, you can add trackingNumber logic here
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -401,14 +398,59 @@ exports.buyProduct = async (req, res) => {
     // Save the order
     await order.save();
 
-    // Add the order to the user's order history (assuming User model has orders array)
-    // const user = await User.findById(userId);
-    // if (user) {
-    //   user.orders.push(order._id);
-    //   await user.save();
-    // }
 
-    // Clear the cart after successful purchase
+
+    // Set up Nodemailer transport using environment variables
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // or any other mail service
+      auth: {
+        user: process.env.Email,  // Use the email from environment variables
+        pass: process.env.Password, // Use the correct spelling of 'Password'
+      },
+    });
+
+
+    // Prepare the email content with product details
+    const productDetails = products.map(product => `
+      <div>
+        <h3>${product.name}</h3>
+        <p>Price: $${product.price}</p>
+        <img src="${product.images[0]}" alt="${product.name}" style="width:150px; height:auto;" />
+      </div>
+    `).join('<hr>');
+
+    // Email options
+    const mailOptions = {
+      from: process.env.Email, // Must match the transporter email
+      to: email, // Send to the user's email
+      subject: 'Your Order Details',
+      html: `
+        <h2>Thank you for your purchase!</h2>
+        <p>Hello ${firstName} ${lastName},</p>
+        <p>Here are the details of the products you purchased:</p>
+        ${productDetails}
+        <h3>Total Amount: $${cart.totalPrice}</h3>
+        <p>Thanks For Shopping!.</p>
+      `,
+    };
+
+    transporter.verify(function (error, success) {
+      if (error) {
+        console.log('SMTP connection error:', error);
+      } else {
+        console.log('SMTP server is ready to take our messages');
+      }
+    });
+
+    // Send the email and handle potential errors
+    await transporter.sendMail(mailOptions)
+      .then(() => {
+        console.log('Order confirmation email sent successfully.');
+      })
+      .catch((error) => {
+        console.error('Failed to send order confirmation email:', error.message);
+      });
+
     cart.items = [];
     cart.message = [];
     cart.totalProduct = 0;
@@ -417,16 +459,12 @@ exports.buyProduct = async (req, res) => {
 
     // Return success message and order details
     return res.status(200).json({
-      message: "Order placed successfully!",
+      message: "Order placed successfully! A confirmation email has been sent.",
       order,
     });
-    // } else {
-    //   return res.status(400).json({ message: "Payment failed!" });
-    // }
+
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
