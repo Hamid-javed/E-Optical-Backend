@@ -18,11 +18,11 @@ router.post("/buy-cart", productControl.buyCart);//fixed
 router.get("/get-order", productControl.getMyOrder);//fixed
 router.get("/wishlist", productControl.getWishlistProduct)//fixed
 router.post("/wishlist/:productId", productControl.addProductTWoishlist);//fixed
-router.delete("/wishlist/:productId", productControl.removeProductFromWishlist);
+router.delete("/wishlist/:productId", productControl.removeProductFromWishlist);//fixed
+router.post("/review/:productId", productControl.addReview);//fixed
+router.delete("/review/:productId/:reviewId", productControl.deleteReview);//fixed
 router.get("/:productId/reviews", productControl.getAllReviews);
-router.post("/reviews/:productId", productControl.addReview);//fixed
 router.put("/reviews/:reviewId", verifyUserToken, productControl.updateReview);
-router.delete("/reviews/:reviewId", verifyUserToken, productControl.deleteReview);
 
 
 

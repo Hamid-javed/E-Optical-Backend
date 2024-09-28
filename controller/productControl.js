@@ -81,14 +81,14 @@ exports.deleteProduct = async (req, res) => {
   try {
     const { productId } = req.params;
     if (!productId) {
-      return res.status(400).json({message: "ProductId not found!"})
+      return res.status(400).json({ message: "ProductId not found!" })
     }
     const product = await Product.findById(productId)
     if (!product) {
-      return res.status(400).json({message: "Product not found!"})
+      return res.status(400).json({ message: "Product not found!" })
     }
     await Product.findByIdAndDelete(productId);
-    res.status(200).json({message: "Product deleted successfully!"})
+    res.status(200).json({ message: "Product deleted successfully!" })
   } catch (error) {
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
@@ -479,7 +479,7 @@ exports.addProductTWoishlist = async (req, res) => {
     if (!cartUUID) {
       return res.status(404).json({ message: "UUID not found!" });
     }
-    
+
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found!" });
@@ -532,30 +532,6 @@ exports.getWishlistProduct = async (req, res) => {
   }
 };
 
-// exports.removeProductFromWishlist = async (req, res) => {
-//   try {
-//     const {cartUUID} = req.cookies;
-//     if (!cartUUID) {
-//       return res.status(404).json({ message: "CartUUID not found!" });
-//     }
-//     const { productId } = req.params;
-//     if (!productId) {
-//       res.status(404).json({ message: "Product not found!" });
-//     }
-//     const wishList = await Wish.findOne({cartUUID: cartUUID})
-//     wishList.items = wishList.items.filter(item => item !== productId)
-//     await wishList.save();
-//     console.log(wishList)
-//     res.status(200).json({
-//       message: "Product removed from wishlist!",
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Internal server error",
-//       error: error.message,
-//     });
-//   }
-// };
 exports.removeProductFromWishlist = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
@@ -653,23 +629,19 @@ exports.updateReview = async (req, res) => {
 
 // Delete a Review - Only if the user owns the review
 exports.deleteReview = async (req, res) => {
-  const { reviewId } = req.params;
-  const userId = req.user._id;
-
   try {
-    const existingReview = await Review.findById(reviewId);
-
-    if (!existingReview) {
-      return res.status(404).json({ message: "Review not found." });
+    const { reviewId } = req.params;
+    const { productId } = req.params;
+    if (!productId) {
+      return res.status(404).json({message: ""})
     }
-
-    if (existingReview.user.toString() !== userId.toString()) {
-      return res
-        .status(403)
-        .json({ message: "You can only delete your own review." });
+    const product = await Product.findById(productId)
+    const reviewIndex = product.reviews.findIndex(review => review._id.toString() === reviewId)
+    if (reviewIndex === -1) {
+      return res.status(404).json({ message: "Review not found!" });
     }
-
-    await existingReview.remove();
+    product.reviews.splice(reviewIndex, 1)
+    await product.save();
     res.status(200).json({ message: "Review deleted successfully." });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
