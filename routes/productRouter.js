@@ -6,7 +6,7 @@ const { images } = require("../middlewares/images");
 
 router.post("/add-product", images, productControl.addProduct);//fixed
 router.post("/update-product/:productId", images, productControl.updateProduct);//fixed
-router.post("/delete-product/:productId", productControl.updateProduct);//fixed
+router.delete("/delete-product/:productId", productControl.deleteProduct);//fixed
 router.get("/category/:category", productControl.getProductsByCategory);//fixed
 router.get("/featured", productControl.featured);//fixed
 router.get("/get/:productId", productControl.getSingle);//fixed
