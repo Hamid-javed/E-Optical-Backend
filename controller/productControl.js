@@ -477,18 +477,20 @@ exports.addProductTWoishlist = async (req, res) => {
     const { cartUUID } = req.cookies;
     const { productId } = req.params;
     if (!cartUUID) {
-      res.status(404).json({ message: "UUID not found!" });
+      return res.status(404).json({ message: "UUID not found!" });
     }
+    
     const product = await Product.findById(productId);
     if (!product) {
-      res.status(404).json({ message: "Product not found!" });
+      return res.status(404).json({ message: "Product not found!" });
     }
-    const wishList = await Wish.findOne({ cartUUID: cartUUID })
+
+    let wishList = await Wish.findOne({ cartUUID: cartUUID });
     if (!wishList) {
       wishList = new Wish({
         items: [productId],
-        cartUUID: cartUUID
-      })
+        cartUUID: cartUUID,
+      });
     } else {
       const isProductInWishlist = wishList.items.includes(productId);
       if (!isProductInWishlist) {
@@ -497,7 +499,7 @@ exports.addProductTWoishlist = async (req, res) => {
         return res.status(400).json({ message: "Product is already in the wishlist!" });
       }
     }
-    await wishList.save()
+    await wishList.save();
     res.status(200).json({
       message: "Product added to wishlist!",
     });
@@ -513,35 +515,67 @@ exports.getWishlistProduct = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
     if (!cartUUID) {
-      return res.statud(404).json({ message: "CartUUID not found!" })
+      return res.status(404).json({ message: "CartUUID not found!" });
     }
-    const wishList = await Wish.findOne({ cartUUID: cartUUID })
+
+    const wishList = await Wish.findOne({ cartUUID: cartUUID }).populate('items').exec();
     if (!wishList) {
-      return res.statud(400).json({ message: "No product found in  wishList!" })
+      return res.status(400).json({ message: "No product found in wishlist!" });
     }
-    res.status(200).json(wishList)
+
+    res.status(200).json(wishList);
   } catch (error) {
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
-}
+};
 
-
-
-exports.removeProductTWoishlist = async (req, res) => {
+// exports.removeProductFromWishlist = async (req, res) => {
+//   try {
+//     const {cartUUID} = req.cookies;
+//     if (!cartUUID) {
+//       return res.status(404).json({ message: "CartUUID not found!" });
+//     }
+//     const { productId } = req.params;
+//     if (!productId) {
+//       res.status(404).json({ message: "Product not found!" });
+//     }
+//     const wishList = await Wish.findOne({cartUUID: cartUUID})
+//     wishList.items = wishList.items.filter(item => item !== productId)
+//     await wishList.save();
+//     console.log(wishList)
+//     res.status(200).json({
+//       message: "Product removed from wishlist!",
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+exports.removeProductFromWishlist = async (req, res) => {
   try {
-    const userId = req.id;
+    const { cartUUID } = req.cookies;
+    if (!cartUUID) {
+      return res.status(404).json({ message: "CartUUID not found!" });
+    }
+
     const { productId } = req.params;
     if (!productId) {
-      res.status(404).json({ message: "Product not found!" });
+      return res.status(404).json({ message: "Product ID not found!" }); // Added return
     }
-    const user = await User.findById(userId);
-    user.wishlist = user.wishlist.filter(
-      (product) => product.toString() !== productId
-    );
-    await user.save();
+
+    const wishList = await Wish.findOne({ cartUUID: cartUUID });
+    if (!wishList) {
+      return res.status(404).json({ message: "Wishlist not found!" }); // Check if wishlist exists
+    }
+
+    wishList.items = wishList.items.filter(item => item.toString() !== productId);
+    await wishList.save();
+
     res.status(200).json({
       message: "Product removed from wishlist!",
     });

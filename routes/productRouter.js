@@ -16,9 +16,9 @@ router.post("/cart-product/:productId", productControl.addToCart);//fixed
 router.delete("/cart-product/:productId", productControl.removeFromCart);//fixed
 router.post("/buy-cart", productControl.buyCart);//fixed
 router.get("/get-order", productControl.getMyOrder);//fixed
-router.get("/wishlist", productControl.getWishlistProduct)
+router.get("/wishlist", productControl.getWishlistProduct)//fixed
 router.post("/wishlist/:productId", productControl.addProductTWoishlist);//fixed
-router.delete("/wishlist/:productId", verifyUserToken, productControl.removeProductTWoishlist);
+router.delete("/wishlist/:productId", productControl.removeProductFromWishlist);
 router.get("/:productId/reviews", productControl.getAllReviews);
 router.post("/reviews/:productId", productControl.addReview);//fixed
 router.put("/reviews/:reviewId", verifyUserToken, productControl.updateReview);
