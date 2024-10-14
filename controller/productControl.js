@@ -113,23 +113,48 @@ exports.getProductsByCategory = async (req, res) => {
 };
 
 
+// exports.featured = async (req, res) => {
+//   try {
+//     const categories = await Product.aggregate([
+//       { $group: { _id: "$category" } },
+//       { $limit: 10 },
+//     ]).exec();
+//     const productPromises = categories.map((category) => {
+//       return Product.findOne({ category: category._id }).exec();
+//     });
+//     const featuredProducts = await Promise.all(productPromises);
+//     res.status(200).json(featuredProducts);
+//   } catch (error) {
+//     res.status(404).json({
+//       error: error.message,
+//     });
+//   }
+// };
+
 exports.featured = async (req, res) => {
   try {
     const categories = await Product.aggregate([
       { $group: { _id: "$category" } },
       { $limit: 10 },
     ]).exec();
+
     const productPromises = categories.map((category) => {
-      return Product.findOne({ category: category._id }).exec();
+      return Product.aggregate([
+        { $match: { category: category._id } },
+        { $sample: { size: 1 } } // Randomly select 1 product per category
+      ]).exec();
     });
+
     const featuredProducts = await Promise.all(productPromises);
-    res.status(200).json(featuredProducts);
+    res.status(200).json(featuredProducts.flat());
   } catch (error) {
     res.status(404).json({
       error: error.message,
     });
   }
 };
+
+
 
 exports.getSingle = async (req, res) => {
   try {
@@ -204,87 +229,194 @@ exports.search = async (req, res) => {
   }
 };
 
+
+// exports.addToCart = async (req, res) => {
+//   try {
+//     const { lens = "No lens", rightCYL, rightSPH, rightAxis, leftCYL, leftSPH, leftAxis, quantity = 1 } = req.body;
+//     const { productId } = req.params;
+//     const { cartUUID } = req.cookies;
+
+//     if (!productId) {
+//       return res.status(404).json({ message: "No products found!" });
+//     }
+
+//     let cart;
+//     if (!cartUUID) {
+//       const newUUID = uuidv4();
+//       cart = new Cart({
+//         cartUUID: newUUID,
+//         items: [],
+//         totalPrice: 0,
+//         totalProduct: 0,
+//       });
+//       await cart.save();
+//       res.cookie("cartUUID", newUUID, {
+//         httpOnly: true,
+//         path: "/",
+//         sameSite: "None",
+//         secure: true,
+//       });
+//     } else {
+//       cart = await Cart.findOne({ cartUUID: cartUUID });
+//       if (!cart) {
+//         res.clearCookie('cartUUID', { path: '/' });
+//         const newUUID = uuidv4();
+//         res.cookie("cartUUID", newUUID, {
+//           httpOnly: true,
+//           path: "/",
+//           sameSite: "None",
+//           secure: true,
+//         });
+//         return res
+//           .status(404)
+//           .json({ message: `Cart with UUID ${cartUUID} not found!` });
+//       }
+//     }
+
+//     const product = await Product.findById(productId);
+//     if (!product) {
+//       return res.status(404).json({ message: `Product with ID ${productId} not found!` });
+//     }
+
+//     let newPrice = product.price * quantity;
+//     if (lens === "digitalScreenLens") {
+//       newPrice += 1000 * quantity;
+//     } else if (lens === "transitionLens") {
+//       newPrice += 1250 * quantity;
+//     } else if (lens === "transitionAndDigital") {
+//       newPrice += 2000 * quantity;
+//     }
+
+//     const message = {
+//       productName: product.name,
+//       rightCYL,
+//       rightSPH,
+//       rightAxis,
+//       leftCYL,
+//       leftSPH,
+//       leftAxis,
+//       lens
+//     };
+
+//     cart.items.push({ product: product._id, quantity, message });
+//     cart.totalProduct = cart.items.length;
+
+//     cart.totalPrice += newPrice;
+
+//     const deliveryCharge = 150;
+//     cart.totalPrice += deliveryCharge;
+
+//     await cart.save();
+
+//     return res.status(200).json({
+//       message: "Products added to cart successfully!",
+//       cart,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 exports.addToCart = async (req, res) => {
   try {
-    const { lense, right, rightAxis, left, leftAxis } = req.body;
+    const { lens = "No lens", rightCYL, rightSPH, rightAxis, leftCYL, leftSPH, leftAxis, quantity = 1 } = req.body;
     const { productId } = req.params;
-    const { cartUUID } = req.cookies;
+    let { cartUUID } = req.cookies;
     if (!productId) {
-      res.status(404).json({ mesage: "No products Found!" })
+      return res.status(404).json({ message: "No products found!" });
     }
+
     let cart;
+
     if (!cartUUID) {
-      const newUUID = uuidv4();
+      cartUUID = uuidv4();
       cart = new Cart({
-        cartUUID: newUUID,
+        cartUUID: cartUUID,
         items: [],
         totalPrice: 0,
         totalProduct: 0,
       });
       await cart.save();
-      res.cookie("cartUUID", newUUID, {
+      res.cookie("cartUUID", cartUUID, {
         httpOnly: true,
         path: "/",
         sameSite: "None",
         secure: true,
       });
     } else {
-      cart = await Cart.findOne({ cartUUID });
+
+      cart = await Cart.findOne({ cartUUID: cartUUID });
       if (!cart) {
-        return res
-          .status(404)
-          .json({ message: `Cart with UUID ${cartUUID} not found!` });
+
+        res.clearCookie("cartUUID", { path: "/" });
+        cartUUID = uuidv4();
+        cart = new Cart({
+          cartUUID: cartUUID,
+          items: [],
+          totalPrice: 0,
+          totalProduct: 0,
+        });
+        await cart.save();
+
+        res.cookie("cartUUID", cartUUID, {
+          httpOnly: true,
+          path: "/",
+          sameSite: "None",
+          secure: true,
+        });
       }
     }
+
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: `Product with ID ${productId} not found!` });
     }
-    let newPrice = product.price;
-    if (lense === "digitalScreenLense") {
-      newPrice += 1000;
-      cart.items.push(product._id);
-      cart.totalProduct = cart.items.length
-      cart.totalPrice += newPrice;
-    } else if (lense === "transitionLense") {
-      newPrice += 1250;
-      cart.items.push(product._id);
-      cart.totalProduct = cart.items.length
-      cart.totalPrice += newPrice;
-    } else if (lense === "transitionAnddigital") {
-      newPrice += 2000;
-      cart.items.push(product._id);
-      cart.totalProduct = cart.items.length
-      cart.totalPrice += newPrice;
-    } else {
-      cart.items.push(product._id);
-      cart.totalProduct = cart.items.length
-      cart.totalPrice += product.price;
+
+    // Calculate the price based on lens type
+    let newPrice = product.price * quantity;
+    if (lens === "digitalScreenLens") {
+      newPrice += 1000 * quantity;
+    } else if (lens === "transitionLens") {
+      newPrice += 1250 * quantity;
+    } else if (lens === "transitionAndDigital") {
+      newPrice += 2000 * quantity;
     }
-    const deliveryCharge = 150;
-    cart.totalPrice += deliveryCharge;
-    if (right || rightAxis || left || leftAxis) {
-      const message = {
-        productName: product.name,
-        right,
-        rightAxis,
-        left,
-        leftAxis
-      }
-      cart.message.push(message)
-    }
-    await cart.save()
+
+    // Create the message for the product customization
+    const message = {
+      productName: product.name,
+      rightCYL,
+      rightSPH,
+      rightAxis,
+      leftCYL,
+      leftSPH,
+      leftAxis,
+      lens
+    };
+
+    // Add the product and customization to the cart
+    cart.items.push({ product: product._id, quantity, message });
+    cart.totalProduct = cart.items.length;
+    // Update the total price
+    cart.totalPrice += newPrice;
+    // Save the updated cart
+    await cart.save();
+
     return res.status(200).json({
       message: "Products added to cart successfully!",
       cart,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
 };
+
 
 exports.getCart = async (req, res) => {
   try {
@@ -296,7 +428,7 @@ exports.getCart = async (req, res) => {
     const product = cart.items;
     const products = await Product.find({ _id: { $in: product } });
     res.status(200).json({
-      products: products,
+      items: cart.items,
       totalPrice: cart.totalPrice,
       totalProduct: cart.totalProduct,
     });
@@ -312,31 +444,37 @@ exports.removeFromCart = async (req, res) => {
   try {
     const { cartUUID } = req.cookies;
     const { productId } = req.params;
+
     const cart = await Cart.findOne({ cartUUID: cartUUID });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found!" });
     }
-    const productToRemove = cart.items.find((items) => {
-      return items.toString() === productId;
-    });
-    if (!productToRemove) {
+
+    const cartItemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
+    if (cartItemIndex === -1) {
       return res.status(404).json({ message: "Product not found in cart!" });
     }
+
     const product = await Product.findById(productId);
     if (!product) {
-      return res
-        .status(404)
-        .json({ message: "Product not found in database!" });
+      return res.status(404).json({ message: "Product not found in database!" });
     }
-    cart.items = cart.items.filter((item) => item.toString() !== productId);
+
+    const quantityToRemove = cart.items[cartItemIndex].quantity;
+
+    cart.items.splice(cartItemIndex, 1);
+
     cart.totalProduct = cart.items.length;
-    cart.totalPrice -= product.price;
+
+    cart.totalPrice -= product.price * quantityToRemove;
+
     await cart.save();
-    res.status(200).json({
+
+    return res.status(200).json({
       message: "Product removed from cart!",
     });
   } catch (error) {
-    res.status(501).json({
+    return res.status(500).json({
       error: error.message,
     });
   }
@@ -368,6 +506,7 @@ exports.buyCart = async (req, res) => {
       product.stock -= 1;
       await product.save();
     }
+    const amountWithDelivery = cart.totalPrice + 200;
 
     // Create an order
     const order = new Order({
@@ -375,7 +514,7 @@ exports.buyCart = async (req, res) => {
       products: products.map(product => product._id),
       message: cart.message,
       items: cart.items,
-      totalAmount: cart.totalPrice,
+      totalAmount: amountWithDelivery,
       shippingAddress: {
         firstName,
         lastName,
@@ -385,12 +524,9 @@ exports.buyCart = async (req, res) => {
         number,
         zip,
         country,
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      }
     });
 
-    // Save the order
     await order.save();
 
     const transporter = nodemailer.createTransport({
@@ -399,6 +535,8 @@ exports.buyCart = async (req, res) => {
         user: process.env.Email,
         pass: process.env.Password,
       },
+      port: 587,  // TLS port
+      secure: false
     });
 
     const productDetails = products.map(product => `
@@ -633,7 +771,7 @@ exports.deleteReview = async (req, res) => {
     const { reviewId } = req.params;
     const { productId } = req.params;
     if (!productId) {
-      return res.status(404).json({message: ""})
+      return res.status(404).json({ message: "" })
     }
     const product = await Product.findById(productId)
     const reviewIndex = product.reviews.findIndex(review => review._id.toString() === reviewId)
