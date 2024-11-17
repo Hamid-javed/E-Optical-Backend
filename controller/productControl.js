@@ -171,6 +171,65 @@ exports.getSingle = async (req, res) => {
   }
 };
 
+// exports.search = async (req, res) => {
+//   try {
+//     const {
+//       query = "",
+//       page = 1,
+//       limit = 10,
+//       category = "",
+//       sortfield = "",
+//       sortorder = "asc",
+//     } = req.query;
+//     const pageNumber = parseInt(page, 10) || 1;
+//     const pageSize = parseInt(limit, 10) || 10;
+//     const skip = (pageNumber - 1) * pageSize;
+//     const regex = query ? new RegExp(query, "i") : new RegExp("");
+
+//     const searchCriteria = query
+//       ? {
+//         $or: [{ name: { $regex: regex } }, { category: { $regex: regex } }],
+//       }
+//       : {};
+//     let sortF;
+//     if (sortfield === "rating") {
+//       sortF = "rating";
+//     }
+
+//     const validSortFields = ["rating"];
+//     const validSortOrder = ["asc", "desc"];
+//     let sortCriteria = {};
+
+//     if (
+//       sortfield &&
+//       validSortFields.includes(sortF) &&
+//       validSortOrder.includes(sortorder)
+//     ) {
+//       sortCriteria[sortF] = sortorder === "asc" ? 1 : -1;
+//     } else {
+//       sortCriteria = { _id: 1 };
+//     }
+
+//     const products = await Product.find(searchCriteria)
+//       .sort(sortCriteria)
+//       .skip(skip)
+//       .limit(pageSize);
+
+//     const totalCount = await Product.countDocuments(searchCriteria);
+
+//     res.status(200).json({
+//       page: pageNumber,
+//       limit: pageSize,
+//       totalResults: totalCount,
+//       totalPages: Math.ceil(totalCount / pageSize),
+//       results: products,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: "Error fetching products" });
+//   }
+// };
+
+
 exports.search = async (req, res) => {
   try {
     const {
@@ -180,38 +239,30 @@ exports.search = async (req, res) => {
       category = "",
       sortfield = "",
       sortorder = "asc",
+      suggestions = false,
     } = req.query;
-    const pageNumber = parseInt(page, 10) || 1;
-    const pageSize = parseInt(limit, 10) || 10;
-    const skip = (pageNumber - 1) * pageSize;
-    const regex = query ? new RegExp(query, "i") : new RegExp("");
 
+    const regex = query ? new RegExp(query, "i") : new RegExp("");
     const searchCriteria = query
       ? {
         $or: [{ name: { $regex: regex } }, { category: { $regex: regex } }],
       }
       : {};
-    let sortF;
-    if (sortfield === "rating") {
-      sortF = "rating";
+
+    if (suggestions) {
+      // Fetch only product names for suggestions
+      const productNames = await Product.find(searchCriteria)
+        .select("name")
+        .limit(10); // Suggest the top 10 matches
+      return res.status(200).json({ suggestions: productNames });
     }
 
-    const validSortFields = ["rating"];
-    const validSortOrder = ["asc", "desc"];
-    let sortCriteria = {};
-
-    if (
-      sortfield &&
-      validSortFields.includes(sortF) &&
-      validSortOrder.includes(sortorder)
-    ) {
-      sortCriteria[sortF] = sortorder === "asc" ? 1 : -1;
-    } else {
-      sortCriteria = { _id: 1 };
-    }
+    const pageNumber = parseInt(page, 10) || 1;
+    const pageSize = parseInt(limit, 10) || 10;
+    const skip = (pageNumber - 1) * pageSize;
 
     const products = await Product.find(searchCriteria)
-      .sort(sortCriteria)
+      .sort({ [sortfield]: sortorder === "asc" ? 1 : -1 })
       .skip(skip)
       .limit(pageSize);
 
@@ -230,131 +281,44 @@ exports.search = async (req, res) => {
 };
 
 
-// exports.addToCart = async (req, res) => {
-//   try {
-//     const { lens = "No lens", rightCYL, rightSPH, rightAxis, leftCYL, leftSPH, leftAxis, quantity = 1 } = req.body;
-//     const { productId } = req.params;
-//     const { cartUUID } = req.cookies;
-
-//     if (!productId) {
-//       return res.status(404).json({ message: "No products found!" });
-//     }
-
-//     let cart;
-//     if (!cartUUID) {
-//       const newUUID = uuidv4();
-//       cart = new Cart({
-//         cartUUID: newUUID,
-//         items: [],
-//         totalPrice: 0,
-//         totalProduct: 0,
-//       });
-//       await cart.save();
-//       res.cookie("cartUUID", newUUID, {
-//         httpOnly: true,
-//         path: "/",
-//         sameSite: "None",
-//         secure: true,
-//       });
-//     } else {
-//       cart = await Cart.findOne({ cartUUID: cartUUID });
-//       if (!cart) {
-//         res.clearCookie('cartUUID', { path: '/' });
-//         const newUUID = uuidv4();
-//         res.cookie("cartUUID", newUUID, {
-//           httpOnly: true,
-//           path: "/",
-//           sameSite: "None",
-//           secure: true,
-//         });
-//         return res
-//           .status(404)
-//           .json({ message: `Cart with UUID ${cartUUID} not found!` });
-//       }
-//     }
-
-//     const product = await Product.findById(productId);
-//     if (!product) {
-//       return res.status(404).json({ message: `Product with ID ${productId} not found!` });
-//     }
-
-//     let newPrice = product.price * quantity;
-//     if (lens === "digitalScreenLens") {
-//       newPrice += 1000 * quantity;
-//     } else if (lens === "transitionLens") {
-//       newPrice += 1250 * quantity;
-//     } else if (lens === "transitionAndDigital") {
-//       newPrice += 2000 * quantity;
-//     }
-
-//     const message = {
-//       productName: product.name,
-//       rightCYL,
-//       rightSPH,
-//       rightAxis,
-//       leftCYL,
-//       leftSPH,
-//       leftAxis,
-//       lens
-//     };
-
-//     cart.items.push({ product: product._id, quantity, message });
-//     cart.totalProduct = cart.items.length;
-
-//     cart.totalPrice += newPrice;
-
-//     const deliveryCharge = 150;
-//     cart.totalPrice += deliveryCharge;
-
-//     await cart.save();
-
-//     return res.status(200).json({
-//       message: "Products added to cart successfully!",
-//       cart,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Internal server error",
-//       error: error.message,
-//     });
-//   }
-// };
-
 exports.addToCart = async (req, res) => {
   try {
     const { lens = "No lens", rightCYL, rightSPH, rightAxis, leftCYL, leftSPH, leftAxis, quantity = 1 } = req.body;
     const { productId } = req.params;
     let { cartUUID } = req.cookies;
+
     if (!productId) {
-      return res.status(404).json({ message: "No products found!" });
+      return res.status(404).json({ message: "No product found!" });
     }
 
     let cart;
+    console.log(cartUUID);
 
     if (!cartUUID) {
       cartUUID = uuidv4();
       cart = new Cart({
-        cartUUID: cartUUID,
+        cartUUID,
         items: [],
         totalPrice: 0,
         totalProduct: 0,
       });
       await cart.save();
+
       res.cookie("cartUUID", cartUUID, {
         httpOnly: true,
         path: "/",
         sameSite: "None",
         secure: true,
+        maxAge: 10 * 365 * 24 * 60 * 60 * 1000,
       });
     } else {
+      cart = await Cart.findOne({ cartUUID });
 
-      cart = await Cart.findOne({ cartUUID: cartUUID });
       if (!cart) {
-
         res.clearCookie("cartUUID", { path: "/" });
         cartUUID = uuidv4();
         cart = new Cart({
-          cartUUID: cartUUID,
+          cartUUID,
           items: [],
           totalPrice: 0,
           totalProduct: 0,
@@ -366,6 +330,7 @@ exports.addToCart = async (req, res) => {
           path: "/",
           sameSite: "None",
           secure: true,
+          maxAge: 10 * 365 * 24 * 60 * 60 * 1000,
         });
       }
     }
@@ -375,7 +340,6 @@ exports.addToCart = async (req, res) => {
       return res.status(404).json({ message: `Product with ID ${productId} not found!` });
     }
 
-    // Calculate the price based on lens type
     let newPrice = product.price * quantity;
     if (lens === "digitalScreenLens") {
       newPrice += 1000 * quantity;
@@ -385,7 +349,6 @@ exports.addToCart = async (req, res) => {
       newPrice += 2000 * quantity;
     }
 
-    // Create the message for the product customization
     const message = {
       productName: product.name,
       rightCYL,
@@ -394,19 +357,24 @@ exports.addToCart = async (req, res) => {
       leftCYL,
       leftSPH,
       leftAxis,
-      lens
+      lens,
     };
 
-    // Add the product and customization to the cart
-    cart.items.push({ product: product._id, quantity, message });
+    const existingItemIndex = cart.items.findIndex((item) => item.product.toString() === productId);
+    if (existingItemIndex !== -1) {
+      cart.items[existingItemIndex].quantity += quantity;
+      cart.items[existingItemIndex].message = message;
+    } else {
+      cart.items.push({ product: product._id, quantity, message });
+    }
+
     cart.totalProduct = cart.items.length;
-    // Update the total price
     cart.totalPrice += newPrice;
-    // Save the updated cart
+
     await cart.save();
 
     return res.status(200).json({
-      message: "Products added to cart successfully!",
+      message: "Product added to cart successfully!",
       cart,
     });
   } catch (error) {
@@ -416,6 +384,7 @@ exports.addToCart = async (req, res) => {
     });
   }
 };
+
 
 
 exports.getCart = async (req, res) => {
@@ -612,22 +581,30 @@ exports.getMyOrder = async (req, res) => {
 
 exports.addProductTWoishlist = async (req, res) => {
   try {
-    const { cartUUID } = req.cookies;
+    let { wishUUID } = req.cookies;
     const { productId } = req.params;
-    if (!cartUUID) {
-      return res.status(404).json({ message: "UUID not found!" });
-    }
 
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found!" });
     }
 
-    let wishList = await Wish.findOne({ cartUUID: cartUUID });
+    if (!wishUUID) {
+      wishUUID = uuidv4();
+      res.cookie("wishUUID", wishUUID, {
+        httpOnly: true,
+        path: "/",
+        sameSite: "None",
+        secure: true,
+        maxAge: 10 * 365 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    let wishList = await Wish.findOne({ wishUUID: wishUUID });
     if (!wishList) {
       wishList = new Wish({
         items: [productId],
-        cartUUID: cartUUID,
+        wishUUID
       });
     } else {
       const isProductInWishlist = wishList.items.includes(productId);
@@ -636,6 +613,7 @@ exports.addProductTWoishlist = async (req, res) => {
       } else {
         return res.status(400).json({ message: "Product is already in the wishlist!" });
       }
+      // wishList.items.push(productId);
     }
     await wishList.save();
     res.status(200).json({
@@ -649,14 +627,15 @@ exports.addProductTWoishlist = async (req, res) => {
   }
 };
 
+
 exports.getWishlistProduct = async (req, res) => {
   try {
-    const { cartUUID } = req.cookies;
-    if (!cartUUID) {
-      return res.status(404).json({ message: "CartUUID not found!" });
+    const { wishUUID } = req.cookies;
+    if (!wishUUID) {
+      return res.status(400).json({ message: "No wislist ID found!" });
     }
 
-    const wishList = await Wish.findOne({ cartUUID: cartUUID }).populate('items').exec();
+    const wishList = await Wish.findOne({ wishUUID: wishUUID }).populate('items').exec();
     if (!wishList) {
       return res.status(400).json({ message: "No product found in wishlist!" });
     }
@@ -672,19 +651,19 @@ exports.getWishlistProduct = async (req, res) => {
 
 exports.removeProductFromWishlist = async (req, res) => {
   try {
-    const { cartUUID } = req.cookies;
-    if (!cartUUID) {
-      return res.status(404).json({ message: "CartUUID not found!" });
+    const { wishUUID } = req.cookies;
+    if (!wishUUID) {
+      return res.status(404).json({ message: "cartUUID not found!" });
     }
 
     const { productId } = req.params;
     if (!productId) {
-      return res.status(404).json({ message: "Product ID not found!" }); // Added return
+      return res.status(404).json({ message: "Product ID not found!" });
     }
 
-    const wishList = await Wish.findOne({ cartUUID: cartUUID });
+    const wishList = await Wish.findOne({ wishUUID: wishUUID });
     if (!wishList) {
-      return res.status(404).json({ message: "Wishlist not found!" }); // Check if wishlist exists
+      return res.status(404).json({ message: "Wishlist not found!" });
     }
 
     wishList.items = wishList.items.filter(item => item.toString() !== productId);

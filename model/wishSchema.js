@@ -6,7 +6,7 @@ const wishSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   }],
-  cartUUID: { type: String, required: true },
+  wishUUID: { type: String, required: true },
 });
 
 module.exports = mongoose.model('Wishlist', wishSchema);
